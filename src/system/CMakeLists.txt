@@ -53,8 +53,9 @@ add_library(rex::runtime ALIAS rexruntime)
 add_library(rex::system ALIAS rexruntime)
 add_library(rex::kernel ALIAS rexruntime)
 
-# Curated export table: export exactly what the title (fable_2.exe) and the GPU
-# plugin import, rather than export-all. This keeps the PE export section small
+# Curated export table: export exactly what the title (fable_2.exe), the GPU
+# plugin and the rexglue tool import, rather than export-all. This keeps the PE
+# export section small
 # and (importantly) guarantees the Xbox-360 kernel-stub __imp__* symbols are
 # exported even when the dual-backend (D3D12+Vulkan) build's full symbol set
 # would otherwise push them out of the linker's export table.
@@ -75,6 +76,8 @@ endif()
 
 # Windows only: ELF/Mach-O builds export with default visibility.
 if(WIN32)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                 "${CMAKE_CURRENT_SOURCE_DIR}/rexruntime.def")
     file(RELATIVE_PATH REXRUNTIME_DEF_REL "${CMAKE_BINARY_DIR}" "${REXRUNTIME_DEF}")
     set_target_properties(rexruntime PROPERTIES
         LINK_DEPENDS "${REXRUNTIME_DEF}"
