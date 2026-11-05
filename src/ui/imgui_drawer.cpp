@@ -621,19 +621,28 @@ void ImGuiDrawer::OnKey(KeyEvent& e, bool is_down) {
   if (auto imGuiKey = VirtualKeyToImGuiKey(virtual_key); imGuiKey) {
     io.AddKeyEvent(*imGuiKey, is_down);
   }
+  // ImGui 1.87+ derives io.KeyCtrl/KeyShift/KeyAlt/KeySuper from the ImGuiMod_*
+  // keys every frame, so writing those fields directly was overwritten and
+  // shortcuts (Ctrl+V paste, Ctrl+C, Ctrl+A, Ctrl+X, Ctrl+Z) never fired.
   switch (virtual_key) {
     case VirtualKey::kShift:
-      io.KeyShift = is_down;
+    case VirtualKey::kLShift:
+    case VirtualKey::kRShift:
+      io.AddKeyEvent(ImGuiMod_Shift, is_down);
       break;
     case VirtualKey::kControl:
-      io.KeyCtrl = is_down;
+    case VirtualKey::kLControl:
+    case VirtualKey::kRControl:
+      io.AddKeyEvent(ImGuiMod_Ctrl, is_down);
       break;
     case VirtualKey::kMenu:
-      // FIXME(Triang3l): Doesn't work in xenia-ui-window-demo.
-      io.KeyAlt = is_down;
+    case VirtualKey::kLMenu:
+    case VirtualKey::kRMenu:
+      io.AddKeyEvent(ImGuiMod_Alt, is_down);
       break;
     case VirtualKey::kLWin:
-      io.KeySuper = is_down;
+    case VirtualKey::kRWin:
+      io.AddKeyEvent(ImGuiMod_Super, is_down);
       break;
     default:
       break;
