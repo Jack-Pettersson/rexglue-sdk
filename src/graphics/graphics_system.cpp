@@ -22,6 +22,7 @@
 #include <rex/cvar.h>
 #include <rex/graphics/command_processor.h>
 #include <rex/graphics/flags.h>
+#include <rex/graphics/precise_sleeper.h>
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/logging.h>
 #include <rex/stream.h>
@@ -164,6 +165,7 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
             std::max(uint64_t(1), uint64_t(double(guest_tick_frequency) / refresh_rate_hz));
         uint64_t no_vsync_interval_ticks = std::max(uint64_t(1), guest_tick_frequency / 1000);
         uint64_t last_frame_time = chrono::Clock::QueryGuestTickCount();
+        PreciseSleeper sleeper;
         while (vsync_worker_running_) {
           uint64_t current_time = chrono::Clock::QueryGuestTickCount();
           uint64_t interval_ticks =
@@ -173,7 +175,12 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
             MarkVblank();
             last_frame_time += interval_ticks;
           }
-          rex::thread::Sleep(std::chrono::milliseconds(1));
+          // Sleep until the next vblank. A 1 ms Sleep can round up to the
+          // 15.6 ms timer tick on Windows, delivering vblanks in bursts.
+          uint64_t elapsed = chrono::Clock::QueryGuestTickCount() - last_frame_time;
+          uint64_t remaining = elapsed < interval_ticks ? interval_ticks - elapsed : 0;
+          sleeper.SleepFor(std::chrono::nanoseconds(remaining * 1000000000ull /
+                                                    guest_tick_frequency));
         }
         return 0;
       }));
