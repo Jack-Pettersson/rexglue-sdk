@@ -1156,6 +1156,11 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
     // the host present rate capped at the monitor refresh rate.
     return PaintResult::kPresented;
   }
+  if (!HostFrameLimitAllows()) {
+    // Over the `host_frame_limit` cap. While a UI drawer is active, the next
+    // vblank repaint presents the fresh content once a slot opens.
+    return PaintResult::kPresented;
+  }
   if (!GuestVblankPaceAllows()) {
     // The `pace_to_guest_vblank` cvar is enabled: at most one present per
     // guest-refresh interval, so the game runs at its native guest vblank
@@ -1180,6 +1185,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
   paint_context_.present_submission_tracker.NextSubmission();
   if (SUCCEEDED(present_result)) {
     VsyncPresentGateNotePresent();
+    HostFrameLimitNotePresent();
   }
   switch (present_result) {
     case DXGI_ERROR_DEVICE_REMOVED:

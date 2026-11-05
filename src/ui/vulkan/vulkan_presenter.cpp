@@ -1539,7 +1539,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
   // presented, so skipping the present after the acquire leaks one image per
   // suppressed paint, until every acquire fails and the window stops updating.
   const bool vsync_gate_allows = VsyncPresentGateAllows();
-  if (!vsync_gate_allows || !GuestVblankPaceAllows()) {
+  if (!vsync_gate_allows || !HostFrameLimitAllows() || !GuestVblankPaceAllows()) {
     // The UI drawers that would have requested the next paint don't run this
     // time. Keep the continuous UI repaint going only for the vsync gate (the
     // next host vblank lets it through); a pacer-suppressed paint is requested
@@ -2274,6 +2274,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
   }
   if (present_result == VK_SUCCESS || present_result == VK_SUBOPTIMAL_KHR) {
     VsyncPresentGateNotePresent();
+    HostFrameLimitNotePresent();
   }
   switch (present_result) {
     case VK_SUCCESS:

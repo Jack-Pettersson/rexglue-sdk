@@ -28,6 +28,7 @@
 
 #include <rex/assert.h>
 #include <rex/math.h>
+#include <rex/ui/present_rate_limiter.h>
 #include <rex/platform.h>
 #include <rex/types.h>
 #include <rex/ui/flags.h>
@@ -898,6 +899,11 @@ class Presenter {
   // vblank is only ever presented once.
   bool GuestVblankPaceAllows();
 
+  // `host_frame_limit` cvar: check before the guest vblank pacer (which claims
+  // a frame), and note after every successful present.
+  bool HostFrameLimitAllows();
+  void HostFrameLimitNotePresent();
+
  private:
   // Must be called only in the end of entry points - reinitialization of the
   // presenter may be done by the handler if it was called from the UI thread
@@ -1098,6 +1104,7 @@ class Presenter {
   // only touched under dxgi_ui_tick_mutex_.
   std::atomic<uint64_t> vsync_present_gate_last_present_tick_{0};
   std::atomic<uint64_t> vsync_present_gate_suppressed_{0};
+  PresentRateLimiter host_frame_limiter_;
   uint64_t vsync_present_gate_last_log_time_ms_ = 0;
   // If output is null or shutdown is true, the signal may not be sent, either
   // don't limit the frame rate in this case (an exceptional situation, such as
