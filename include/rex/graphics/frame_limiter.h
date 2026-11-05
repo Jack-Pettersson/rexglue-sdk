@@ -20,14 +20,22 @@ class FrameLimiter {
       return;
     }
     auto now = Clock::now();
-    if (rate_ == frames_per_second) {
-      auto period = std::chrono::duration_cast<Clock::duration>(
-          std::chrono::duration<double>(1.0 / frames_per_second));
-      WaitUntil(previous_ + period);
-      now = Clock::now();
+    if (rate_ != frames_per_second) {
+      previous_ = now;
+      rate_ = frames_per_second;
+      return;
     }
-    previous_ = now;
-    rate_ = frames_per_second;
+    auto period = std::chrono::duration_cast<Clock::duration>(
+        std::chrono::duration<double>(1.0 / frames_per_second));
+    auto deadline = previous_ + period;
+    // Advance by the period, not to the wake time, so timer overshoot doesn't
+    // add up into a lower rate. Only a whole period late resets the schedule.
+    if (now < deadline) {
+      WaitUntil(deadline);
+      previous_ = deadline;
+    } else {
+      previous_ = now - deadline < period ? deadline : now;
+    }
   }
 
  private:
