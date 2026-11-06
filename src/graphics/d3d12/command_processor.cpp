@@ -20,6 +20,8 @@
 #include <rex/dbg.h>
 #include <rex/perf/counter.h>
 #include <rex/graphics/d3d12/command_processor.h>
+#include "fable2_skinning.h"
+#include "fable2_terrain_tess.h"
 #include <rex/graphics/d3d12/graphics_system.h>
 #include <rex/graphics/d3d12/shader.h>
 #include <rex/graphics/flags.h>
@@ -34,6 +36,15 @@
 
 REXCVAR_DEFINE_BOOL(d3d12_bindless, true, "GPU/D3D12", "Use bindless resources where available")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_BOOL(terrain_tess_cpu, false, "GPU/D3D12",
+                    "Compute Fable II's terrain tessellation factors on the CPU so the "
+                    "memexport draw does not wait for the GPU every frame")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+REXCVAR_DEFINE_BOOL(skinning_cpu, false, "GPU/D3D12",
+                    "Compute Fable II's memexport skinning on the CPU so the draw does not "
+                    "wait for the GPU every frame")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 REXCVAR_DEFINE_BOOL(d3d12_readback_memexport, false, "GPU/D3D12",
                     "Read data written by memory export in shaders on the CPU")
@@ -2293,6 +2304,21 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
     return false;
   }
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
+  // These memexport shaders only read data the CPU wrote, so the CPU can give the
+  // guest their output directly. The draw still runs, only the wait to read the
+  // result back is skipped.
+  bool memexport_computed_on_cpu = false;
+  {
+    uint32_t written_start = 0, written_length = 0;
+    const uint64_t vs_hash = vertex_shader->ucode_data_hash();
+    memexport_computed_on_cpu =
+        (vs_hash == kFable2TerrainTessShader && REXCVAR_GET(terrain_tess_cpu) &&
+         ComputeFable2TerrainTess(*register_file_, *memory_, *vertex_shader, written_start,
+                                  written_length)) ||
+        (vs_hash == kFable2SkinningShader && REXCVAR_GET(skinning_cpu) &&
+         ComputeFable2Skinning(*register_file_, *memory_, *vertex_shader, nullptr, written_start,
+                               written_length));
+  }
   bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
 
   // Pixel shader analysis.
@@ -2719,7 +2745,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
       // be unknown. Keep invalidation conservative in this case.
       shared_memory_->RangeWrittenByGpu(0, SharedMemory::kBufferSize);
     }
-    if (IsReadbackMemexportEnabled(REXCVAR_GET(d3d12_readback_memexport)) &&
+    if (!memexport_computed_on_cpu &&
+        IsReadbackMemexportEnabled(REXCVAR_GET(d3d12_readback_memexport)) &&
         !memexport_ranges_.empty()) {
       uint32_t memexport_total_size = 0;
       for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
