@@ -40,6 +40,10 @@ class D3D12CommandProcessor;
 
 class D3D12RenderTargetCache final : public RenderTargetCache {
  public:
+  void SetDepthOverwrittenByNextUpdate(bool overwritten) {
+    depth_overwritten_by_next_update_ = overwritten;
+  }
+
   D3D12RenderTargetCache(const RegisterFile& register_file, const memory::Memory& memory,
                          uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
                          D3D12CommandProcessor& command_processor, bool bindless_resources_used)
@@ -119,6 +123,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   void RequestPixelShaderInterlockBarrier() override;
 
  private:
+  bool depth_overwritten_by_next_update_ = false;
+
   enum class EdramBufferModificationStatus {
     // The values are ordered by how strong the barrier conditions are.
     // No uncommitted ROV/UAV writes.
