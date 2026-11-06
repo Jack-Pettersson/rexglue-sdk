@@ -39,6 +39,12 @@ REXCVAR_DEFINE_BOOL(pace_to_guest_vblank, false, "UI/Presenter",
                     "only every other vblank")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
+REXCVAR_DEFINE_INT32(host_frame_limit, 0, "UI/Presenter",
+                     "Host present limit in FPS (0 = unlimited). Skips presents "
+                     "instead of waiting, so the guest frame rate is unaffected.")
+    .range(0, rex::ui::PresentRateLimiter::kMaxFramesPerSecond)
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 REXCVAR_DEFINE_BOOL(present_letterbox, true, "UI/Presenter",
                     "Enable letterboxing for non-native aspect ratios");
 
@@ -1672,6 +1678,16 @@ void Presenter::VsyncPresentGateNotePresent() {
                                                 std::memory_order_relaxed);
   }
 #endif  // REX_PLATFORM_WIN32
+}
+
+bool Presenter::HostFrameLimitAllows() {
+  return host_frame_limiter_.Allows(REXCVAR_GET(host_frame_limit),
+                                    PresentRateLimiter::Clock::now());
+}
+
+void Presenter::HostFrameLimitNotePresent() {
+  host_frame_limiter_.NotePresent(REXCVAR_GET(host_frame_limit),
+                                  PresentRateLimiter::Clock::now());
 }
 
 bool Presenter::GuestVblankPaceAllows() {
