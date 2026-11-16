@@ -197,10 +197,9 @@ X_STATUS XFile::ReadInternal(uint32_t buffer_guest_address, uint32_t buffer_leng
                                         buffer_guest_address);
             }
 
-            if (byte_offset) {
-              position_ = byte_offset;
-            }
-            position_ += bytes_read;
+            // byte_offset is already the current position when none was
+            // given, so this also covers a read at an explicit offset of 0.
+            position_ = byte_offset + bytes_read;
           }
         }
       }
