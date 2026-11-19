@@ -62,6 +62,20 @@ if(EXISTS "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}/
     # Carried on the sources so they hold for whichever target compiles them.
     set_source_files_properties({{ cmake_var("REXGLUE_ENTRYPOINT_GENERATED_SOURCES") }}
         PROPERTIES COMPILE_OPTIONS "{{ cmake_var("REXGLUE_RECOMP_OPTIONS") }}")
+
+    # The headers codegen writes beside the sources: three fixed ones and one
+    # {{ names.snake_case }}_funcs.<n>.h for each {{ names.snake_case }}_recomp.<n>.cpp.
+    set(REXGLUE_ENTRYPOINT_GENERATED_HEADERS
+        "{{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}/{{ names.snake_case }}_pch.h"
+        "{{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}/{{ names.snake_case }}_funcs.h"
+        "{{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}/{{ names.snake_case }}_init.h")
+    foreach(_rexglue_source IN LISTS REXGLUE_ENTRYPOINT_GENERATED_SOURCES)
+        if(_rexglue_source MATCHES "/{{ names.snake_case }}_recomp\\.([0-9]+)\\.cpp$")
+            list(APPEND REXGLUE_ENTRYPOINT_GENERATED_HEADERS
+                "{{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}/{{ names.snake_case }}_funcs.{{ cmake_var("CMAKE_MATCH_1") }}.h")
+        endif()
+    endforeach()
+    unset(_rexglue_source)
 endif()
 
 # The options go on the target as well: CMake compiles the header from its own
@@ -112,11 +126,17 @@ endmacro()
 # changes. Build it alone with 'cmake --build . --target {{ names.snake_case }}_codegen'.
 # Listing the sources as outputs orders any target that compiles them after
 # codegen, including one a project assembles itself rather than taking the
-# library rexglue_setup_target() builds. The stamp comes first: the DEPFILE
-# names it.
+# library rexglue_setup_target() builds. The headers are outputs too. A build
+# tool finds a header through the compiler's dependency file, and unless a
+# rule owns the header it reads the header's age once, before codegen runs.
+# The precompiled header then counts as current while the sources are rebuilt
+# against it and the compiler rejects it, and anything that includes only a
+# changed header is not rebuilt until the next build. The stamp comes first:
+# the DEPFILE names it.
 add_custom_command(
     OUTPUT "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}/codegen.build.stamp"
            {{ cmake_var("REXGLUE_ENTRYPOINT_GENERATED_SOURCES") }}
+           {{ cmake_var("REXGLUE_ENTRYPOINT_GENERATED_HEADERS") }}
     COMMAND $<TARGET_FILE:rex::rexglue> codegen {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ names.snake_case }}_manifest.toml
     DEPFILE "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}/codegen.d"
     WORKING_DIRECTORY {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}
